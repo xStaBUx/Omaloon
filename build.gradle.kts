@@ -4,6 +4,10 @@ import arc.util.serialization.Jval
 import de.undercouch.gradle.tasks.download.Download
 import ent.EntityAnnoExtension
 import java.io.BufferedWriter
+import ent.*
+import mmc.JarMindustryTask
+import java.io.*
+import org.jetbrains.kotlin.gradle.plugin.KaptExtension
 
 buildscript {
     val arcVersion: String by project
@@ -36,6 +40,7 @@ val asmLib: (String) -> Any = {
 
 val arcVersion: String by project
 val arcLibraryVersion: String by project
+val zelauxCoreVersion: String by project
 val mindustryVersion: String by project
 val mindustryBEVersion: String by project
 val entVersion: String by project
@@ -58,6 +63,10 @@ fun arc(module: String): String {
 
 fun arcLibrary(module: String): String {
     return "com.github.Zelaux.ArcLibrary$module:$arcLibraryVersion"
+}
+
+fun zelauxCore(module: String): String {
+    return "com.github.Zelaux.MindustryModCore:${module.trim(':').replace(':', '-')}:$zelauxCoreVersion"
 }
 
 fun mindustry(module: String): String {
@@ -117,6 +126,13 @@ project(":") {
 }
 
 project(":") {
+    //sometimes task checkKotlinGradlePluginConfigurationErrors are missing...
+//    tasks.register("checkKotlinGradlePluginConfigurationErrors1"){    }
+    tasks.register("mindustryJar", JarMindustryTask::class) {
+        dependsOn(tasks.getByPath("jar"))
+        group = "build"
+    }
+
     apply(plugin = "com.github.GlennFolker.EntityAnno")
     configure<EntityAnnoExtension> {
         modName = project.properties["modName"].toString()
@@ -127,6 +143,14 @@ project(":") {
         genSrcPackage = modGenSrc
         genPackage = modGen
     }
+    configure<KaptExtension> {
+        arguments {
+            arg("ROOT_DIRECTORY", project.rootDir.canonicalPath)
+            arg("rootPackage", "ol")
+            arg("classPrefix", "Ol")
+        }
+    }
+    dependencies {
 
     //Added debuging diring compilation to debug annotation processors
     tasks.withType(JavaCompile::class).configureEach {
@@ -144,8 +168,14 @@ project(":") {
         annotationProcessor(project(":annotations"))
 
         // Use the entity generation annotation processor.
-        compileOnly(entity(":entity"))
-        add("kapt", entity(":entity"))
+        var kaptAnno = listOf(
+            entity(":entity"),
+            zelauxCore(":annotations:remote")
+        )
+        kaptAnno.forEach {
+            compileOnly(it)
+            add("kapt", it)
+        }
 
         compileOnly("org.jetbrains:annotations:24.0.1")
 
